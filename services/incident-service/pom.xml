@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!-- 
+        Maven POM version. Always 4.0.0 — this is just the XML schema version, 
+        not your project version. 
+    -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- 
+        PARENT: spring-boot-starter-parent 
+        This gives us sensible default configurations for a Spring Boot project:
+        - Default Java version
+        - Dependency version management (so we don't specify versions for every Spring library)
+        - Default plugin configurations (compiler, test runner, etc.)
+        Think of it as: "Use Spring Boot's recommended settings as our baseline"
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/>
+    </parent>
+
+    <!-- 
+        PROJECT COORDINATES: How Maven uniquely identifies this project.
+        groupId    = organization (like a reverse domain name)
+        artifactId = project name
+        version    = current version (SNAPSHOT means "in development")
+    -->
+    <groupId>com.opspilot</groupId>
+    <artifactId>incident-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>incident-service</name>
+    <description>OpsPilot Incident Management Service</description>
+
+    <!-- 
+        PROPERTIES: Variables we can reference elsewhere in this file.
+        java.version tells Spring Boot which Java version to compile for.
+        We target Java 17 even though JDK 27 is installed — this ensures 
+        our code is compatible with Java 17+ environments.
+    -->
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+
+    <!-- 
+        DEPENDENCIES: Libraries our project needs.
+        Because we declared spring-boot-starter-parent above, we don't need 
+        to specify versions for Spring libraries — the parent manages them.
+    -->
+    <dependencies>
+
+        <!-- 
+            spring-boot-starter-web: 
+            Gives us everything for building REST APIs:
+            - Embedded Tomcat server
+            - Spring MVC (controllers, request mapping)
+            - Jackson (automatic JSON serialization/deserialization)
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- 
+            spring-boot-starter-data-jpa:
+            Gives us database access via JPA (Java Persistence API):
+            - Hibernate (the ORM that maps Java objects to database tables)
+            - Spring Data repositories (write less boilerplate for CRUD operations)
+            - Transaction management
+            We include this now so the foundation is ready for Phase 2.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- 
+            spring-boot-starter-validation:
+            Bean Validation (JSR 380) — lets us annotate fields with 
+            @NotNull, @Size, @Email, etc. to validate incoming API requests.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- 
+            spring-boot-starter-actuator:
+            Production-ready features:
+            - /actuator/health endpoint (built-in health check)
+            - /actuator/info, /actuator/metrics
+            We'll build our own custom health endpoint too, for learning.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- 
+            PostgreSQL JDBC Driver:
+            The low-level driver that lets Java talk to PostgreSQL.
+            JPA/Hibernate uses this under the hood.
+            'runtime' scope means it's needed at runtime but not at compile time
+            (our code talks to JPA interfaces, not directly to PostgreSQL).
+        -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- 
+            H2 Database (in-memory):
+            A lightweight in-memory database for development and testing.
+            We'll use this temporarily until we set up PostgreSQL with Docker.
+            This lets us run the app RIGHT NOW without any database setup.
+        -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- 
+            spring-boot-starter-test:
+            Everything for testing:
+            - JUnit 5
+            - Mockito
+            - Spring Test utilities
+            - AssertJ
+            'test' scope means these are only available during testing, 
+            not included in the production build.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <!-- 
+        BUILD PLUGINS: Tools that run during the build process.
+        spring-boot-maven-plugin packages our app as an executable JAR
+        with an embedded Tomcat server — so we can run it with just:
+        java -jar incident-service.jar
+    -->
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

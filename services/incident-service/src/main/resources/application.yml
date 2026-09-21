@@ -1,0 +1,59 @@
+# =============================================================================
+# Incident Service Configuration
+# =============================================================================
+# This file configures how the Spring Boot application behaves.
+# YAML uses indentation to show hierarchy (like Python).
+
+spring:
+  application:
+    # This name identifies the service in logs and monitoring.
+    # In a microservice architecture, each service has a unique name.
+    name: incident-service
+
+  # ---- Database Configuration ----
+  # We're using H2 (in-memory database) temporarily.
+  # This means data is lost when the app restarts — that's fine for Phase 1.
+  # We'll switch to PostgreSQL when we set up Docker.
+  datasource:
+    url: jdbc:h2:mem:incidentdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # JPA / Hibernate settings
+  jpa:
+    # hibernate.ddl-auto controls how Hibernate handles database schema:
+    #   - 'create-drop': Create tables on startup, drop on shutdown (good for dev)
+    #   - 'update': Update schema to match entities (convenient but risky in production)
+    #   - 'validate': Only check that schema matches entities (safest for production)
+    #   - 'none': Do nothing (use when you manage schema with Flyway/Liquibase)
+    # We'll use 'create-drop' for now since H2 is in-memory anyway.
+    hibernate:
+      ddl-auto: create-drop
+    # Show SQL queries in the console (helpful for learning, disable in production)
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # H2 Console - a web UI to inspect the in-memory database
+  # Access it at: http://localhost:8081/h2-console
+  h2:
+    console:
+      enabled: true
+
+# ---- Server Configuration ----
+server:
+  # Each microservice runs on a different port so they don't conflict locally.
+  # incident-service: 8081
+  # detection-service: 8082 (later)
+  # rca-service: 8083 (later)
+  port: 8081
+
+# ---- Logging Configuration ----
+logging:
+  level:
+    # Show INFO and above for our code
+    com.opspilot: INFO
+    # Show SQL parameter values (useful for debugging JPA queries)
+    org.hibernate.SQL: DEBUG
