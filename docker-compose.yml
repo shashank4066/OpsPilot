@@ -1,0 +1,56 @@
+# ==============================================================================
+# Docker Compose — Local Development Environment
+# ==============================================================================
+# Runs all services together with networking and dependencies.
+# Replaces cloud infrastructure for local development.
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose logs -f        # Follow logs
+#   docker-compose down           # Stop and remove containers
+
+version: '3.8'
+
+services:
+  # ---- PostgreSQL Database ----
+  # Replaces H2 for persistent local storage
+  postgres:
+    image: postgres:16-alpine
+    container_name: opspilot-postgres
+    environment:
+      POSTGRES_DB: opspilot
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: opspilot-dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- Incident Service ----
+  incident-service:
+    build:
+      context: ./services/incident-service
+      dockerfile: Dockerfile
+    container_name: opspilot-incident-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/opspilot
+      SPRING_DATASOURCE_USERNAME: opspilot
+      SPRING_DATASOURCE_PASSWORD: opspilot-dev
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local

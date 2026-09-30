@@ -149,4 +149,160 @@ If they all used the default 8080, only one could run at a time.
 
 ---
 
+## Phase 2 — Domain Model (Entities, DTOs, Validation)
+
+### Q1: Why did you use UUID as the primary key instead of auto-increment?
+
+**Answer:**
+In a microservice architecture, different services might generate IDs independently. UUIDs avoid conflicts across services — two services can't accidentally generate the same ID. Auto-increment also leaks information: if an attacker sees INC-1042, they know INC-1043 probably exists. UUIDs are unpredictable and universally unique.
+
+---
+
+### Q2: What is `@Enumerated(EnumType.STRING)` and why is it critical?
+
+**Answer:**
+Without `EnumType.STRING`, JPA stores the enum's ordinal position (0, 1, 2). If you reorder the enum or add a value in the middle, **all existing data breaks** — what was stored as `1` now maps to a different value. `STRING` stores `"SEV2"` as text in the database, so it's safe to modify the enum later.
+
+**Interview tip:** Always say STRING, never use ORDINAL. This is a common production bug that junior developers cause.
+
+---
+
+### Q3: Why use DTOs instead of exposing entities directly?
+
+**Answer:**
+Four reasons:
+1. **Decoupling** — changing the entity doesn't break the API
+2. **Security** — prevent leaking internal fields (like JPA version columns)
+3. **Validation** — different operations need different validation (create vs update)
+4. **Control** — expose exactly what clients need, nothing more
+
+**Interview tip:** This shows understanding of API design maturity. Many tutorials skip DTOs — mentioning them shows production thinking.
+
+---
+
+### Q4: Why is `@Transactional` important on the `updateStatus` method?
+
+**Answer:**
+`@Transactional` makes the entire method atomic — all database operations succeed or all roll back. If we update the status but then fail to save the timestamp, `@Transactional` ensures the database reverts to its previous state. Without it, we could end up with an inconsistent state: status changed but timestamp not set.
+
+`@Transactional(readOnly = true)` on read methods is a performance hint — Hibernate skips dirty-checking because it knows nothing will change.
+
+---
+
+### Q5: Why validate status transitions in the service layer and not the controller?
+
+**Answer:**
+Because the service layer is the **single source of truth** for business logic. Status changes can come from REST APIs, event handlers, or scheduled jobs. If validation was in the controller, event-driven status changes would **bypass the rules entirely**. By putting it in the service, the same rules apply regardless of the entry point.
+
+---
+
+## Phase 3 — Event-Driven Architecture
+
+### Q1: What is the Dependency Inversion Principle and how did you apply it?
+
+**Answer:**
+Business logic depends on **abstractions** (interfaces), not concrete implementations. We created an `EventPublisher` interface that the `IncidentService` depends on. In development, Spring injects `InMemoryEventPublisher`. In production, it would inject `AzureServiceBusEventPublisher`. **Zero business logic changes** needed when switching — just configuration.
+
+```java
+public interface EventPublisher {
+    void publish(DomainEvent event);
+}
+```
+
+This same pattern applies to the AI client (`MockRcaAiClient` vs `AzureOpenAiClient`) and storage.
+
+---
+
+### Q2: Why does every event carry a `correlationId`?
+
+**Answer:**
+In distributed systems, a single business operation (like handling an incident) spans multiple services. The correlationId follows the incident from detection → RCA → remediation. When debugging, I can search all service logs with one correlationId and reconstruct the **entire lifecycle** across services. Without it, debugging distributed systems is nearly impossible.
+
+---
+
+### Q3: What is idempotency and why does it matter for events?
+
+**Answer:**
+Idempotency means processing the same event twice produces the **same result**. It matters because message brokers can deliver messages more than once (at-least-once delivery). Without idempotency, reprocessing an `INCIDENT_CREATED` event could create duplicate incidents. We handle it by storing processed event IDs and checking before processing.
+
+---
+
+### Q4: What is a dead-letter queue?
+
+**Answer:**
+When a message fails processing after all retry attempts, it goes to a dead-letter queue instead of being **discarded or blocking the queue**. This prevents message loss and lets operators investigate failures later. Example: if the RCA service can't parse an event, after 3 retries it goes to the dead-letter queue. An alert notifies the team.
+
+---
+
+### Q5: What is eventual consistency and when is it acceptable?
+
+**Answer:**
+In microservices with async messaging, services can be **temporarily inconsistent**. When an incident is created, the RCA service doesn't know about it until it processes the event (maybe 100ms later). We accept this brief inconsistency because:
+- The decoupling benefit outweighs the consistency cost
+- The inconsistency window is very small
+- The data eventually converges to a consistent state
+
+It would NOT be acceptable for things like financial transactions where strong consistency is required.
+
+---
+
+## Phase 4 — Testing, Docker, CI/CD
+
+### Q1: Explain your testing strategy.
+
+**Answer:**
+Two levels:
+1. **Unit tests** — test business logic in isolation with mocked dependencies (Mockito). The `IncidentServiceTest` mocks the repository and event publisher. Tests run in milliseconds, no database needed.
+2. **Integration tests** — test the full stack with MockMvc. The `IncidentControllerIntegrationTest` boots the real Spring context with H2 and tests HTTP request → controller → service → repository → database.
+
+**Interview tip:** The state machine tests are the most valuable — they prove invalid transitions are correctly rejected.
+
+---
+
+### Q2: Why mock the repository in unit tests?
+
+**Answer:**
+Unit tests should test **one thing** — business logic. If we use a real database:
+- Tests become slow (database setup/teardown)
+- Failures might be caused by database issues, not logic bugs
+- We can't run tests without infrastructure
+
+By mocking the repository, we test **only** the service logic. Repository behavior is separately verified in integration tests.
+
+---
+
+### Q3: Explain your Dockerfile. Why multi-stage?
+
+**Answer:**
+Two stages:
+1. **Build stage** — has Maven + full JDK (~500MB). Compiles source code and packages the JAR.
+2. **Run stage** — has only JRE Alpine (~100MB). Copies the built JAR from stage 1.
+
+The final image is lean and secure — no build tools, no source code, no compiler. We also run as a non-root user for security and include a HEALTHCHECK for container orchestration.
+
+---
+
+### Q4: What does your CI/CD pipeline do?
+
+**Answer:**
+On every push to `main`, GitHub Actions:
+1. Checks out the code
+2. Sets up JDK 17
+3. Runs `mvn clean verify` — which compiles, runs unit tests, and runs integration tests
+4. Uploads test results as artifacts
+
+If any test fails, the pipeline **blocks the push**. This is Continuous Integration — catching bugs before they reach production.
+
+---
+
+### Q5: What's the difference between `mvn test` and `mvn verify`?
+
+**Answer:**
+- `mvn test` — runs unit tests only (Surefire plugin)
+- `mvn verify` — runs unit tests AND integration tests (Failsafe plugin), plus any verification checks
+
+In our CI pipeline, we use `verify` to ensure both unit and integration tests pass.
+
+---
+
 <!-- NEW PHASES WILL BE ADDED BELOW THIS LINE -->

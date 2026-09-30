@@ -4,9 +4,13 @@ import com.opspilot.incident.dto.CreateIncidentRequest;
 import com.opspilot.incident.dto.IncidentResponse;
 import com.opspilot.incident.entity.Incident;
 import com.opspilot.incident.enums.IncidentStatus;
+import com.opspilot.incident.event.DomainEvent;
+import com.opspilot.incident.event.EventPublisher;
 import com.opspilot.incident.exception.IncidentNotFoundException;
 import com.opspilot.incident.exception.InvalidStatusTransitionException;
 import com.opspilot.incident.repository.IncidentRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,7 +45,10 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class IncidentService {
 
+    private static final Logger log = LoggerFactory.getLogger(IncidentService.class);
+
     private final IncidentRepository incidentRepository;
+    private final EventPublisher eventPublisher;
     private final AtomicLong incidentCounter = new AtomicLong(1000);
 
     /**
@@ -69,9 +76,11 @@ public class IncidentService {
                 EnumSet.noneOf(IncidentStatus.class)); // Terminal state
     }
 
-    /** Constructor injection — Spring automatically provides the repository */
-    public IncidentService(IncidentRepository incidentRepository) {
+    /** Constructor injection — Spring automatically provides dependencies */
+    public IncidentService(IncidentRepository incidentRepository,
+                           EventPublisher eventPublisher) {
         this.incidentRepository = incidentRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -98,6 +107,12 @@ public class IncidentService {
         incident.setCorrelationId(UUID.randomUUID().toString());
 
         Incident saved = incidentRepository.save(incident);
+
+        // Publish event — other services react to this
+        eventPublisher.publish(new DomainEvent(
+                "INCIDENT_CREATED", saved.getCorrelationId(), toResponse(saved)));
+        log.info("Incident created: {} - {}", saved.getIncidentNumber(), saved.getTitle());
+
         return toResponse(saved);
     }
 
@@ -168,6 +183,16 @@ public class IncidentService {
         }
 
         Incident saved = incidentRepository.save(incident);
+
+        // Publish status change event
+        eventPublisher.publish(new DomainEvent(
+                "INCIDENT_STATUS_CHANGED", saved.getCorrelationId(),
+                Map.of("incidentId", saved.getId(),
+                       "from", currentStatus.name(),
+                       "to", newStatus.name())));
+        log.info("Incident {} status changed: {} → {}",
+                saved.getIncidentNumber(), currentStatus, newStatus);
+
         return toResponse(saved);
     }
 
