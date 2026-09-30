@@ -85,4 +85,68 @@ This means:
 
 ---
 
+## Phase 1 — Repository + First Spring Boot Service
+
+### Q1: What does `@SpringBootApplication` do?
+
+**Answer:**
+It's a shortcut that combines three annotations:
+1. **`@Configuration`** — marks the class as a source of Spring bean definitions
+2. **`@EnableAutoConfiguration`** — tells Spring Boot to auto-configure based on dependencies (e.g., sees PostgreSQL driver → configures a DataSource)
+3. **`@ComponentScan`** — scans the current package and sub-packages for classes annotated with `@Controller`, `@Service`, `@Repository`, etc. and registers them as Spring-managed beans
+
+**Interview tip:** Don't just say "it starts Spring Boot." Name the three annotations it combines — that shows deeper understanding.
+
+---
+
+### Q2: Why shouldn't a Controller contain database queries directly?
+
+**Answer:**
+**Separation of concerns.** Each layer has one responsibility:
+- **Controller** → handles HTTP (request parsing, response formatting)
+- **Service** → contains business logic
+- **Repository** → talks to the database
+
+If the Controller had database queries:
+- You couldn't **test** business logic without spinning up a web server
+- You couldn't **change your database** without editing your API layer
+- You couldn't **reuse** business logic in other contexts (e.g., event handlers)
+
+**Interview tip:** The key word is **testability**. Separation makes each layer independently testable.
+
+---
+
+### Q3: Our health endpoint returns a Java Map, but the client receives JSON. What converts it?
+
+**Answer:**
+**Jackson** — a JSON serialization library that Spring Boot includes automatically via `spring-boot-starter-web`. When `@RestController` is used, Spring adds `@ResponseBody` behavior, which tells Spring to pass the return value through Jackson to convert it to JSON before sending the HTTP response.
+
+You never write JSON conversion code yourself — Spring handles it automatically based on the annotations.
+
+---
+
+### Q4: Why did we put incident-service on port 8081?
+
+**Answer:**
+Because we're building **multiple microservices** that will all run on the same machine during local development. Each needs its own port:
+- incident-service: **8081**
+- detection-service: **8082**
+- rca-service: **8083**
+
+If they all used the default 8080, only one could run at a time.
+
+---
+
+### Q5: What is `pom.xml` and what does it define?
+
+**Answer:**
+`pom.xml` (Project Object Model) is Maven's build configuration file — like `package.json` for Node.js. It defines:
+1. **Project coordinates** — groupId, artifactId, version (uniquely identifies the project)
+2. **Dependencies** — libraries the project needs (Spring Web, JPA, PostgreSQL driver, etc.)
+3. **Java version** — which Java version to compile for
+4. **Build plugins** — how to compile, test, and package the application
+5. **Parent POM** — `spring-boot-starter-parent` provides sensible defaults for all Spring Boot projects
+
+---
+
 <!-- NEW PHASES WILL BE ADDED BELOW THIS LINE -->

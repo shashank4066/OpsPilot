@@ -140,4 +140,79 @@ Business Logic → Interface (abstraction)
 
 ---
 
+## Phase 1 — Repository + First Spring Boot Service
+
+### Spring Boot Basics
+- **Spring Boot** = Spring Framework + auto-configuration + embedded server + starter dependencies
+- `@SpringBootApplication` = `@Configuration` + `@EnableAutoConfiguration` + `@ComponentScan`
+- Your app runs its own **embedded Tomcat** — no need for a separate server
+- `main()` calls `SpringApplication.run()` → Spring starts, scans for components, auto-configures, starts Tomcat
+
+### Layered Architecture
+```
+Controller (HTTP)  →  Service (Logic)  →  Repository (Database)
+```
+- **Controller**: Receives HTTP requests, returns responses. Never has business logic or DB queries.
+- **Service**: Business logic. Doesn't know about HTTP status codes or request objects.
+- **Repository**: Database operations only. No business rules.
+- Why: **testability** — each layer can be tested independently.
+
+### Key Annotations
+| Annotation | Goes On | Does |
+|---|---|---|
+| `@SpringBootApplication` | Main class | Combines Configuration + AutoConfig + ComponentScan |
+| `@RestController` | Class | Marks as REST controller, auto-converts returns to JSON |
+| `@GetMapping("/path")` | Method | Maps GET requests to this method |
+
+### Maven & pom.xml
+- **Maven** = build tool + dependency manager (like npm for Java)
+- **pom.xml** = declares dependencies, Java version, build plugins, project metadata
+- **`spring-boot-starter-*`** = bundled dependency groups (starter-web = Tomcat + MVC + Jackson)
+- **Parent POM** (`spring-boot-starter-parent`) manages versions so you don't specify them
+
+### Request Flow (for GET /api/v1/health)
+```
+Client sends GET request
+  → Tomcat receives it
+    → DispatcherServlet routes to the right controller method (via @GetMapping)
+      → Method executes, returns a Java object
+        → Jackson converts it to JSON
+          → Tomcat sends HTTP 200 with JSON body
+```
+
+### Project Structure
+```
+services/incident-service/
+├── pom.xml                          ← Build config
+└── src/main/
+    ├── java/com/opspilot/incident/
+    │   ├── IncidentServiceApplication.java   ← Entry point
+    │   └── controller/
+    │       └── HealthController.java         ← REST endpoint
+    └── resources/
+        └── application.yml                   ← Config (port, DB, logging)
+```
+
+### Configuration (application.yml)
+- **Server port**: Each microservice gets its own port (8081, 8082, 8083...)
+- **H2 database**: In-memory DB for early development (data lost on restart)
+- **`hibernate.ddl-auto`**: Controls schema management — `create-drop` for dev, `validate` for prod
+- **`show-sql: true`**: Shows SQL queries in console (learning aid, disable in prod)
+
+### Java Syntax Reminders
+- Every file needs `package` + `import` + `class` structure
+- `public`/`private` = only for class-level things (methods, fields). **Never on local variables.**
+- Every statement ends with `;`
+- Class names are capitalized (`LocalDateTime`), variables are lowercase (`health`)
+- Method declaration: `public ReturnType methodName() { }` — the `{` opens the body
+- Variable creation inside method: `Type name = new Type();` — no access modifier
+
+### Git Conventions
+- **Conventional Commits**: `feat(scope): description`
+  - `feat` = new feature, `fix` = bug fix, `docs` = documentation, `refactor` = restructure
+- `.gitignore` prevents committing: compiled classes, IDE files, OS files, secrets, node_modules
+- Set `git config` for user.name and user.email (should match GitHub account)
+
+---
+
 <!-- NEW PHASES WILL BE ADDED BELOW THIS LINE -->
